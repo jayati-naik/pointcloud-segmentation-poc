@@ -17,9 +17,12 @@
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/surface/mls.h>
 #include <pcl/visualization/pcl_visualizer.h>
+#include <pcl/filters/statistical_outlier_removal.h>
 #include <thread>
 
 using namespace std::chrono_literals;
+
+typedef pcl::PointXYZRGB PointT;
 
 int main(int argc, char **argv) {
   // Read input pcd file into cloud data
@@ -27,40 +30,71 @@ int main(int argc, char **argv) {
   // Write input pcd file into cloud data
   pcl::PCDWriter writer;
 
-  pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud(
-      new pcl::PointCloud<pcl::PointXYZRGB>),
-      cloud_f(new pcl::PointCloud<pcl::PointXYZRGB>);
-  pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_filtered(
-      new pcl::PointCloud<pcl::PointXYZRGB>);
+  pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr cloud(
+      new pcl::PointCloud<pcl::PointXYZRGBNormal>),
+      cloud_f(new pcl::PointCloud<pcl::PointXYZRGBNormal>);
+  pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr cloud_filtered(
+      new pcl::PointCloud<pcl::PointXYZRGBNormal>);
 
-  reader.read("setup_unorg.pcd", *cloud);
+  reader.read("../Data/setup_unorg.pcd", *cloud);
   *cloud_filtered = *cloud;
   double start = pcl::getTime();
 
   // Create the filtering object: downsample the dataset using a leaf size of
   // 1cm
-  // pcl::VoxelGrid<pcl::PointXYZRGB> vg; vg.setInputCloud (cloud);
+  // pcl::VoxelGrid<pcl::PointXYZRGBNormal> vg; vg.setInputCloud (cloud);
   // vg.setLeafSize (0.01f, 0.01f, 0.01f);
   // vg.filter (*cloud_filtered);
 
+  // Statistical Outlier Removal
+  pcl::StatisticalOutlierRemoval<pcl::PointXYZRGBNormal> sor;
+  sor.setInputCloud (cloud);
+  sor.setMeanK (100);
+  sor.setStddevMulThresh (0);
+  sor.filter (*cloud_filtered);
+
+  // Inliers
+  std::cerr << "Cloud after filtering: " << std::endl;
+  std::cerr << *cloud_filtered << std::endl;
+
+  writer.write<pcl::PointXYZRGBNormal> ("filter1.pcd", *cloud_filtered, false);
+
+  //Outliers
+  sor.setNegative (true);
+  sor.filter (*cloud_filtered);
+  writer.write<pcl::PointXYZRGBNormal> ("filter2.pcd", *cloud_filtered, false);
+
+  // Normal Estimation
+  pcl::search::Search<pcl::PointXYZRGBNormal>::Ptr tree(
+      new pcl::search::KdTree<pcl::PointXYZRGBNormal>);
+  pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>);
+  pcl::NormalEstimation<pcl::PointXYZRGBNormal, pcl::Normal> normal_estimator;
+  normal_estimator.setSearchMethod(tree);
+  normal_estimator.setInputCloud(cloud_filtered);
+  normal_estimator.setKSearch(50);
+  normal_estimator.compute(*normals);
+
   // Create the segmentation object for the planar model and set all the
   // parameters
-  pcl::SACSegmentation<pcl::PointXYZRGB> seg;
+  pcl::SACSegmentationFromNormals<pcl::PointXYZRGBNormal, pcl::Normal> seg;
   pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
   pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
-  pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_plane(
-      new pcl::PointCloud<pcl::PointXYZRGB>());
+  pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr cloud_plane(
+      new pcl::PointCloud<pcl::PointXYZRGBNormal>());
   seg.setOptimizeCoefficients(true);
-  seg.setModelType(pcl::SACMODEL_PLANE);
+  seg.setModelType(pcl::SACMODEL_PARALLEL_PLANE);
   seg.setMethodType(pcl::SAC_RANSAC);
   seg.setMaxIterations(10000);
-  seg.setDistanceThreshold(0.008);
+  seg.setDistanceThreshold(0.005);
+  seg.setAxis(Eigen::Vector3f::UnitZ());
   seg.setInputCloud(cloud_filtered);
+  seg.setInputNormals(normals);
+  seg.setNormalDistanceWeight(0.5);
   seg.segment(*inliers, *coefficients);
  
  
   // Extract the planar inliers from the input cloud
-  pcl::ExtractIndices<pcl::PointXYZRGB> extract;
+  pcl::ExtractIndices<pcl::PointXYZRGBNormal> extract;
   extract.setInputCloud(cloud_filtered);
   extract.setIndices(inliers);
 
@@ -78,16 +112,13 @@ int main(int argc, char **argv) {
 
   std::stringstream ss2;
   ss2 << "object_WO_PLANAR.pcd";
-  writer.write<pcl::PointXYZRGB>(ss2.str(), *cloud_filtered, false);
+  writer.write<pcl::PointXYZRGBNormal>(ss2.str(), *cloud_filtered, false);
 
   // Region Growing RGB object detection
-  pcl::search::Search<pcl::PointXYZRGB>::Ptr tree(
-      new pcl::search::KdTree<pcl::PointXYZRGB>);
-
   pcl::IndicesPtr indices(new std::vector<int>);
   pcl::removeNaNFromPointCloud(*cloud_filtered, *indices);
 
-  pcl::RegionGrowingRGB<pcl::PointXYZRGB> reg;
+  pcl::RegionGrowingRGB<pcl::PointXYZRGBNormal, pcl::Normal> reg;
   reg.setInputCloud(cloud_filtered);
   reg.setIndices(indices);
   reg.setSearchMethod(tree);
@@ -95,6 +126,9 @@ int main(int argc, char **argv) {
   reg.setPointColorThreshold(6);
   reg.setRegionColorThreshold(5);
   reg.setMinClusterSize(600);
+  reg.setInputNormals(normals);
+  reg.setSmoothnessThreshold(3.0 / 180.0 * M_PI);
+  reg.setCurvatureThreshold(1.0);
 
   std::vector<pcl::PointIndices> clusters;
   reg.extract(clusters);

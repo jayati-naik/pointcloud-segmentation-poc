@@ -8,7 +8,7 @@
 #include <pcl/common/transforms.h>
 #include <pcl/visualization/pcl_visualizer.h>
 #include <pcl/filters/extract_indices.h>
-#include <pcl/filters/filter_indices.h> 
+#include <pcl/filters/filter_indices.h>
 
 int main(int argc, char **argv)
 {
@@ -40,7 +40,7 @@ int main(int argc, char **argv)
     seg.setMethodType(pcl::SAC_RANSAC);
     seg.setDistanceThreshold(0.005);
     seg.setInputCloud(cloud_filtered);
-    seg.segment(*inliers, *coefficients);\
+    seg.segment(*inliers, *coefficients);
 
     // Extract the planar inliers from the input cloud
     pcl::ExtractIndices<pcl::PointXYZRGBNormal> extract;
@@ -81,44 +81,30 @@ int main(int argc, char **argv)
     std::cout << "Transformation matrix: " << std::endl
               << transform_2.matrix() << std::endl;
 
-    pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr transformed_cloud (new pcl::PointCloud<pcl::PointXYZRGBNormal> ());
+    pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr transformed_cloud(new pcl::PointCloud<pcl::PointXYZRGBNormal>());
     pcl::transformPointCloud(*cloud, *transformed_cloud, transform_2);
 
     double end = pcl::getTime();
-  std::cout << "Duration: " << double(end - start) << " ms" << std::endl;
+    std::cout << "Duration: " << double(end - start) << " ms" << std::endl;
 
-  std::stringstream ss;
-  ss << "../Data/setup_rotated.pcd";
-  writer.write<pcl::PointXYZRGBNormal>(ss.str(), *cloud_filtered, false);
-/*
-  // Visualize colored clouds
-  pcl::visualization::PCLVisualizer viewer("PCL Viewer");
-  viewer.addPointCloud<pcl::PointXYZRGBNormal>(transformed_cloud);
-  while (!viewer.wasStopped()) {
-    viewer.spinOnce();
-  }
+    std::stringstream ss;
+    ss << "../Data/setup_rotated.pcd";
+    writer.write<pcl::PointXYZRGBNormal>(ss.str(), *transformed_cloud, false);
 
-   */
-    // Create the segmentation object for the planar model and set all the
-    // parameters
-    seg.setOptimizeCoefficients(true);
-    seg.setModelType(pcl::SACMODEL_PLANE);
-    seg.setMethodType(pcl::SAC_RANSAC);
-    seg.setDistanceThreshold(0.005);
-    seg.setInputCloud(cloud_filtered);
-    seg.segment(*inliers, *coefficients);
+    // Visualize both the original and the result.
+    pcl::visualization::PCLVisualizer viewer(argv[1]);
+    pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZRGBNormal> colorHandler_original(cloud, 0, 255, 0);
+    viewer.addPointCloud(cloud, colorHandler_original, "original");
 
-    floor_plane_normal_vector[0] = coefficients->values[0];
-    floor_plane_normal_vector[1] = coefficients->values[1];
-    floor_plane_normal_vector[2] = coefficients->values[2];
+    // The transformed one's points will be red in color.
+    pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZRGBNormal> colorHandler(transformed_cloud, 255, 0, 0);
+    viewer.addPointCloud(transformed_cloud, colorHandler, "transformed");
 
-    std::cout << floor_plane_normal_vector << std::endl;
+    // Add 3D colored axes to help see the transformation.
+    viewer.addCoordinateSystem();
 
-    xy_plane_normal_vector[0] = 0.0;
-    xy_plane_normal_vector[1] = 0.0;
-    xy_plane_normal_vector[2] = 1.0;
-
-    rotation_vector = xy_plane_normal_vector.cross(floor_plane_normal_vector);
-    std::cout << "Rotation Vector: " << rotation_vector << std::endl; 
-
+    while (!viewer.wasStopped())
+    {
+        viewer.spinOnce();
+    }
 }

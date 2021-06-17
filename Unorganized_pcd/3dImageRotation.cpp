@@ -42,20 +42,6 @@ int main(int argc, char **argv)
     seg.setInputCloud(cloud_filtered);
     seg.segment(*inliers, *coefficients);
 
-    // Extract the planar inliers from the input cloud
-    pcl::ExtractIndices<pcl::PointXYZRGBNormal> extract;
-    extract.setInputCloud(cloud_filtered);
-    extract.setIndices(inliers);
-
-    // Remove the planar inliers, extract the rest
-    extract.setNegative(true);
-    extract.filter(*cloud_filtered);
-
-    std::cerr << "Floor Plane Model coefficients: " << coefficients->values[0] << " "
-              << coefficients->values[1] << " "
-              << coefficients->values[2] << " "
-              << coefficients->values[3] << std::endl;
-
     Eigen::Matrix<float, 1, 3> floor_plane_normal_vector, xy_plane_normal_vector, rotation_vector;
 
     floor_plane_normal_vector[0] = coefficients->values[0];
@@ -64,9 +50,9 @@ int main(int argc, char **argv)
 
     std::cout << floor_plane_normal_vector << std::endl;
 
-    xy_plane_normal_vector[0] = 0.0;
+    xy_plane_normal_vector[0] = 1.0;
     xy_plane_normal_vector[1] = 0.0;
-    xy_plane_normal_vector[2] = 1.0;
+    xy_plane_normal_vector[2] = 0.0;
 
     std::cout << xy_plane_normal_vector << std::endl;
 

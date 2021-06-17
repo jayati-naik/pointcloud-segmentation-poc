@@ -24,11 +24,15 @@ using namespace std::chrono_literals;
 
 typedef pcl::PointXYZRGB PointT;
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv)
+{
   // Read input pcd file into cloud data
   pcl::PCDReader reader;
   // Write input pcd file into cloud data
   pcl::PCDWriter writer;
+
+  pcl::search::Search<pcl::PointXYZRGBNormal>::Ptr tree(
+      new pcl::search::KdTree<pcl::PointXYZRGBNormal>);
 
   pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr cloud(
       new pcl::PointCloud<pcl::PointXYZRGBNormal>),
@@ -36,37 +40,38 @@ int main(int argc, char **argv) {
   pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr cloud_filtered(
       new pcl::PointCloud<pcl::PointXYZRGBNormal>);
 
-  reader.read("../Data/setup_rotated.pcd", *cloud);
+  reader.read("../Data/delta1_normals.pcd", *cloud);
   *cloud_filtered = *cloud;
   double start = pcl::getTime();
 
+
   // Create the filtering object: downsample the dataset using a leaf size of
   // 1cm
-  // pcl::VoxelGrid<pcl::PointXYZRGBNormal> vg; vg.setInputCloud (cloud);
-  // vg.setLeafSize (0.01f, 0.01f, 0.01f);
-  // vg.filter (*cloud_filtered);
+  pcl::VoxelGrid<pcl::PointXYZRGBNormal> vg; vg.setInputCloud (cloud);
+  vg.setLeafSize (0.01f, 0.01f, 0.01f);
+  vg.filter (*cloud_filtered);
 
+  /*
   // Statistical Outlier Removal
   pcl::StatisticalOutlierRemoval<pcl::PointXYZRGBNormal> sor;
-  sor.setInputCloud (cloud);
-  sor.setMeanK (50);
-  sor.setStddevMulThresh (0.1);
-  sor.filter (*cloud_filtered);
+  sor.setInputCloud(cloud);
+  sor.setMeanK(50);
+  sor.setStddevMulThresh(0);
+  sor.filter(*cloud_filtered);
 
   // Inliers
   std::cerr << "Cloud after filtering: " << std::endl;
   std::cerr << *cloud_filtered << std::endl;
 
-  writer.write<pcl::PointXYZRGBNormal> ("filter1.pcd", *cloud_filtered, false);
+  writer.write<pcl::PointXYZRGBNormal>("filter1.pcd", *cloud_filtered, false);
 
   //Outliers
-  sor.setNegative (true);
-  sor.filter (*cloud_filtered);
-  writer.write<pcl::PointXYZRGBNormal> ("filter2.pcd", *cloud_filtered, false);
-
+  sor.setNegative(true);
+  sor.filter(*cloud_filtered);
+  writer.write<pcl::PointXYZRGBNormal>("filter2.pcd", *cloud_filtered, false);
+  */
   // Normal Estimation
-  pcl::search::Search<pcl::PointXYZRGBNormal>::Ptr tree(
-      new pcl::search::KdTree<pcl::PointXYZRGBNormal>);
+  
   pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>);
   pcl::NormalEstimation<pcl::PointXYZRGBNormal, pcl::Normal> normal_estimator;
   normal_estimator.setSearchMethod(tree);
@@ -86,14 +91,13 @@ int main(int argc, char **argv) {
   seg.setModelType(pcl::SACMODEL_PARALLEL_PLANE);
   seg.setMethodType(pcl::SAC_RANSAC);
   seg.setMaxIterations(10000);
-  seg.setDistanceThreshold(0.008);
+  seg.setDistanceThreshold(0.11);
   seg.setAxis(Eigen::Vector3f::UnitZ());
   seg.setInputCloud(cloud_filtered);
   seg.setInputNormals(normals);
-  seg.setNormalDistanceWeight(0);
+  seg.setNormalDistanceWeight(0.09);
   seg.segment(*inliers, *coefficients);
- 
- 
+
   // Extract the planar inliers from the input cloud
   pcl::ExtractIndices<pcl::PointXYZRGBNormal> extract;
   extract.setInputCloud(cloud_filtered);
@@ -123,13 +127,13 @@ int main(int argc, char **argv) {
   reg.setInputCloud(cloud_filtered);
   reg.setIndices(indices);
   reg.setSearchMethod(tree);
-  reg.setDistanceThreshold(0.05);
+  reg.setDistanceThreshold(0);
   reg.setPointColorThreshold(6);
   reg.setRegionColorThreshold(5);
-  reg.setMinClusterSize(600);
-  reg.setInputNormals(normals);
-  reg.setSmoothnessThreshold(3.0 / 180.0 * M_PI);
-  reg.setCurvatureThreshold(1.0);
+  // reg.setMinClusterSize(100);
+  // reg.setInputNormals(normals);
+  // reg.setSmoothnessThreshold(3.0 / 180.0 * M_PI);
+  // reg.setCurvatureThreshold(1.0);
 
   std::vector<pcl::PointIndices> clusters;
   reg.extract(clusters);
@@ -142,7 +146,11 @@ int main(int argc, char **argv) {
   // Visualize colored clouds
   pcl::visualization::PCLVisualizer viewer("PCL Viewer");
   viewer.addPointCloud<pcl::PointXYZRGB>(colored_cloud);
-  while (!viewer.wasStopped()) {
+
+  // Add 3D colored axes to help see the transformation.
+  // viewer.addCoordinateSystem();
+  while (!viewer.wasStopped())
+  {
     viewer.spinOnce();
   }
 

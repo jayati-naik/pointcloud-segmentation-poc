@@ -36,7 +36,7 @@ int main(int argc, char **argv) {
   pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr cloud_filtered(
       new pcl::PointCloud<pcl::PointXYZRGBNormal>);
 
-  reader.read("../Data/setup_unorg.pcd", *cloud);
+  reader.read("../Data/setup_rotated.pcd", *cloud);
   *cloud_filtered = *cloud;
   double start = pcl::getTime();
 
@@ -49,8 +49,8 @@ int main(int argc, char **argv) {
   // Statistical Outlier Removal
   pcl::StatisticalOutlierRemoval<pcl::PointXYZRGBNormal> sor;
   sor.setInputCloud (cloud);
-  sor.setMeanK (100);
-  sor.setStddevMulThresh (0);
+  sor.setMeanK (50);
+  sor.setStddevMulThresh (0.1);
   sor.filter (*cloud_filtered);
 
   // Inliers
@@ -70,6 +70,7 @@ int main(int argc, char **argv) {
   pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>);
   pcl::NormalEstimation<pcl::PointXYZRGBNormal, pcl::Normal> normal_estimator;
   normal_estimator.setSearchMethod(tree);
+
   normal_estimator.setInputCloud(cloud_filtered);
   normal_estimator.setKSearch(50);
   normal_estimator.compute(*normals);
@@ -85,11 +86,11 @@ int main(int argc, char **argv) {
   seg.setModelType(pcl::SACMODEL_PARALLEL_PLANE);
   seg.setMethodType(pcl::SAC_RANSAC);
   seg.setMaxIterations(10000);
-  seg.setDistanceThreshold(0.005);
+  seg.setDistanceThreshold(0.008);
   seg.setAxis(Eigen::Vector3f::UnitZ());
   seg.setInputCloud(cloud_filtered);
   seg.setInputNormals(normals);
-  seg.setNormalDistanceWeight(0.5);
+  seg.setNormalDistanceWeight(0);
   seg.segment(*inliers, *coefficients);
  
  

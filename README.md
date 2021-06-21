@@ -29,5 +29,8 @@ $ ./pcs_exe
 ```
 Input:
 
+![image](https://user-images.githubusercontent.com/31473347/122730988-b19bb680-d22f-11eb-98ff-c8024de883e0.png)
+
 Output:
+
 ![image](https://user-images.githubusercontent.com/31473347/122729055-9af46000-d22d-11eb-95f4-33ec10b37949.png)

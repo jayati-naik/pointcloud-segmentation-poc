@@ -27,3 +27,7 @@ $ ckmake ..
 $ make
 $ ./pcs_exe
 ```
+Input:
+
+Output:
+![image](https://user-images.githubusercontent.com/31473347/122729055-9af46000-d22d-11eb-95f4-33ec10b37949.png)

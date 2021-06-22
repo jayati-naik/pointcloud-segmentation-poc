@@ -16,7 +16,7 @@ Following operations have been performed in this algorithm:
 
 ## Steps to run PointCloudSegmentation:
 ```
-$ cd pointcloud-degmentation-poc
+$ cd pointcloud-segmentation-poc
 $ mkdir build
 $ cd build
 $ ckmake ..
